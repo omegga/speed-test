@@ -1,5 +1,7 @@
+use flate2::read::GzDecoder;
 use std::env;
 use std::fs;
+use tar::Archive;
 
 const SPEEDTEST_URL: &str = "https://bintray.com/ookla/download/download_file?file_path=ookla-speedtest-1.0.0-x86_64-linux.tgz";
 
@@ -17,6 +19,7 @@ fn run_command(command: String) {
     if command == "-d" {
         let dest = "speedtest.tgz";
         download_speedtest(dest).expect("error downloading speedtest");
+        extract_speedtest(dest).expect("error extracting speedtest");
         run_download_test();
     } else if command == "-u" {
         run_upload_test();
@@ -37,5 +40,13 @@ fn download_speedtest(dest: &str) -> Result<(), Box<dyn std::error::Error>> {
     let speedtest = reqwest::blocking::get(SPEEDTEST_URL)?.bytes()?;
     fs::write(dest, speedtest)?;
     println!("Done");
+    Ok(())
+}
+
+fn extract_speedtest(filename: &str) -> Result<(), std::io::Error> {
+    let tar_gz = fs::File::open(filename)?;
+    let tar = GzDecoder::new(tar_gz);
+    let mut archive = Archive::new(tar);
+    archive.unpack(".")?;
     Ok(())
 }

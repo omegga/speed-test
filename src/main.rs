@@ -4,6 +4,7 @@ use std::error::Error;
 use std::fs;
 use std::process::Command;
 use std::str;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tar::Archive;
 
 const SPEEDTEST_URL: &str = "https://bintray.com/ookla/download/download_file?file_path=ookla-speedtest-1.0.0-x86_64-linux.tgz";
@@ -15,27 +16,48 @@ fn main() {
 }
 
 fn test_speed() {
-    download_speedtest_cli(TARBALL).expect("error downloading speedtest");
-    extract_speedtest_cli(TARBALL).expect("error extracting speedtest");
-    let command = format!("./{} -f json", SPEEDTEST_BIN);
+    let temp_dir = create_temp_dir().expect("failed to create temp directory");
+    download_speedtest_cli(&temp_dir, TARBALL).expect("error downloading speedtest");
+    extract_speedtest_cli(&temp_dir, TARBALL).expect("error extracting speedtest");
+    let command = format!("./{}/{} -f json", &temp_dir, SPEEDTEST_BIN);
     let json_result = run_speedtest_cli(&command).expect("error running speedtest");
     println!("...done\n");
     print_speedtest_results(&json_result).expect("error reading results");
+    clean_files(&temp_dir).expect("error cleaning files");
 }
 
-fn download_speedtest_cli(filename: &str) -> Result<(), Box<dyn Error>> {
+fn create_temp_dir() -> Result<String, std::io::Error> {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
+    let dir_name = format!("temp_{}", now);
+    fs::create_dir(std::path::Path::new(&dir_name))?;
+    Ok(dir_name)
+}
+
+fn download_speedtest_cli(dir: &str, filename: &str) -> Result<(), Box<dyn Error>> {
     println!("\ndownloading speedtest...");
+    let full_path = std::path::Path::new(dir).join(filename);
     let speedtest = reqwest::blocking::get(SPEEDTEST_URL)?.bytes()?;
-    fs::write(filename, speedtest)?;
+    fs::write(full_path, speedtest)?;
     Ok(())
 }
 
-fn extract_speedtest_cli(filename: &str) -> Result<(), std::io::Error> {
+fn extract_speedtest_cli(dir: &str, filename: &str) -> Result<(), std::io::Error> {
     println!("extracting speedtest...");
-    let tar_gz = fs::File::open(filename)?;
+    let full_path = std::path::Path::new(dir).join(filename);
+    let tar_gz = fs::File::open(full_path)?;
     let tar = GzDecoder::new(tar_gz);
     let mut archive = Archive::new(tar);
-    archive.unpack(".")?;
+    let dir_path = std::path::Path::new(dir);
+    archive.unpack(dir_path)?;
+    Ok(())
+}
+
+fn clean_files(dir: &str) -> Result<(), std::io::Error> {
+    let dir_path = std::path::Path::new(dir);
+    fs::remove_dir_all(dir_path)?;
     Ok(())
 }
 
@@ -70,6 +92,6 @@ fn print_speedtest_results(json_results: &str) -> Result<(), Box<dyn Error>> {
 }
 
 fn convert_bits_to_megabits(bits: f64) -> String {
-    let megabits = bits / (125000 as f64);
+    let megabits = bits / 125000_f64;
     format!("{:.2}", megabits)
 }

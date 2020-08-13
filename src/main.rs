@@ -21,7 +21,10 @@ fn test_speed() {
     create_temp_dir(&temp_dir_name).expect("error creating temp directory");
     download_speedtest_cli(&temp_dir_name, TARBALL_NAME).expect("error downloading speedtest");
     extract_speedtest_cli(&temp_dir_name, TARBALL_NAME).expect("error extracting speedtest");
-    let command = format!("./{}/{} -f json", &temp_dir_name, SPEEDTEST_BIN_NAME);
+    let command = format!(
+        "./{}/{} -f json --accept-license --accept-gdpr",
+        &temp_dir_name, SPEEDTEST_BIN_NAME
+    );
     let json_result = run_speedtest_cli(&command).expect("error running speedtest");
     println!("...done\n");
     print_speedtest_results(&json_result).expect("error reading results");
